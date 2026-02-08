@@ -2,8 +2,8 @@ name: Hourly Crypto Bot
 
 on:
   schedule:
-    - cron: '0 * * * *'  # Runs every hour at minute 0
-  workflow_dispatch:  # Optional: Allows manual triggering
+    - cron: '0 * * * *'
+  workflow_dispatch:
 
 jobs:
   run-bot:
@@ -16,13 +16,14 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: '3.12'
-          cache: 'pip' # Enables caching to speed up subsequent runs
+          cache: 'pip'
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          # Install pandas-ta directly from GitHub to avoid PyPI resolution issues
+          # Explicitly install the development version of pandas-ta first
           pip install git+https://github.com/twopirllc/pandas-ta.git@development
+          # Install the rest of the requirements
           pip install -r requirements.txt
 
       - name: Run the bot
@@ -37,7 +38,6 @@ jobs:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
           TWITTER_BEARER_TOKEN: ${{ secrets.TWITTER_BEARER_TOKEN }}
         run: |
-          # Override config.py with env vars
           export EXCHANGE_API_KEYS_XT_APIKEY=$XT_API_KEY
           export EXCHANGE_API_KEYS_XT_SECRET=$XT_SECRET
           export EXCHANGE_API_KEYS_BITGET_APIKEY=$BITGET_API_KEY
@@ -48,5 +48,4 @@ jobs:
           export DISCORD_WEBHOOK_URL=$DISCORD_WEBHOOK_URL
           export TWITTER_BEARER_TOKEN=$TWITTER_BEARER_TOKEN
           
-          # Run the bot
           python main.py
