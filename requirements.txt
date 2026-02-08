@@ -1,11 +1,17 @@
+# Core Data and Exchange
 ccxt>=4.0.0
-pandas>=1.5.0
+pandas>=2.2.0,<3.0.0
 numpy>=1.21.0
+
+# AI and Machine Learning
 tensorflow>=2.10.0
 transformers>=4.20.0
+
+# Social and News APIs
 discord.py>=2.0.0
 tweepy>=4.12.0
-tweepy
 newsapi-python>=0.2.7
 vaderSentiment>=3.3.2
+
+# Technical Analysis (installed from GitHub to bypass PyPI resolution issues)
 -e git+https://github.com/twopirllc/pandas-ta.git@development#egg=pandas-ta
