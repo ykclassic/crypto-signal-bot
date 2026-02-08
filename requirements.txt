@@ -1,0 +1,11 @@
+ccxt>=4.0.0
+pandas>=1.5.0
+pandas-ta>=0.3.14b
+numpy>=1.21.0
+tensorflow>=2.10.0
+transformers>=4.20.0
+discord.py>=2.0.0
+tweepy>=4.12.0
+snscrape>=0.5.0
+newsapi-python>=0.2.7
+vaderSentiment>=3.3.2
