@@ -21,7 +21,7 @@ DISCORD_WEBHOOK_URL = os.getenv('DISCORD_WEBHOOK_URL', 'your_discord_webhook_url
 TWITTER_BEARER_TOKEN = os.getenv('TWITTER_BEARER_TOKEN', 'your_twitter_bearer_token')  # For tweepy
 
 # Other settings
-TICKERS = ['BTC/USDT', 'ETH/USDT']  # Focus tickers
+TICKERS = ['BTC/USDT', 'ETH/USDT', 'BNB/USDT', 'SOL/USDT', 'LINK/USDT', 'XRP/USDT', 'ADA/USDT']  # Focus tickers
 TIMEFRAMES = ['1h', '4h', '1d']
 DB_PATH = 'signals.db'
 LOG_LEVEL = 'INFO'  # Added back for logging
