@@ -8,3 +8,4 @@ tweepy>=4.12.0
 newsapi-python>=0.2.7
 vaderSentiment>=3.3.2
 pandas-ta-classic
+torch
