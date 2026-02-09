@@ -1,5 +1,6 @@
 import time
 import logging
+import os  # Added for env var access
 from config import *
 from data_collection import DataCollector
 from technical_analysis import TechnicalAnalysis
@@ -13,7 +14,6 @@ logging.basicConfig(level=LOG_LEVEL)
 
 def main():
     # Override config with env vars if set (for GitHub Actions)
-    import os
     if 'EXCHANGE_API_KEYS_XT_APIKEY' in os.environ:
         EXCHANGE_API_KEYS['xt']['apiKey'] = os.environ['EXCHANGE_API_KEYS_XT_APIKEY']
         EXCHANGE_API_KEYS['xt']['secret'] = os.environ['EXCHANGE_API_KEYS_XT_SECRET']
@@ -23,9 +23,13 @@ def main():
         EXCHANGE_API_KEYS['gateio']['secret'] = os.environ['EXCHANGE_API_KEYS_GATEIO_SECRET']
         NEWS_API_KEY = os.environ['NEWS_API_KEY']
         DISCORD_WEBHOOK_URL = os.environ['DISCORD_WEBHOOK_URL']
-        TWITTER_BEARER_TOKEN = os.environ['TWITTER_BEARER_TOKEN']
+        TWITTER_BEARER_TOKEN = os.environ['TWITTER_BEARER_TOKEN']  # Added for Tweepy
 
-    collector = DataCollector({'EXCHANGE_API_KEYS': EXCHANGE_API_KEYS, 'NEWS_API_KEY': NEWS_API_KEY})
+    collector = DataCollector({
+        'EXCHANGE_API_KEYS': EXCHANGE_API_KEYS,
+        'NEWS_API_KEY': NEWS_API_KEY,
+        'TWITTER_BEARER_TOKEN': TWITTER_BEARER_TOKEN  # Added to config dict
+    })
     ta = TechnicalAnalysis()
     ai = AIRegimeDetector()
     signal_logic = SignalLogic()
@@ -33,7 +37,7 @@ def main():
     alerter = DiscordAlerter(DISCORD_WEBHOOK_URL)
     db = SignalDatabase(DB_PATH)
 
-    # Run one cycle (instead of while True loop)
+    # Run one cycle (instead of while True loop for GitHub Actions)
     current_prices = {}
     for ticker in TICKERS:
         try:
