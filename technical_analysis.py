@@ -1,48 +1,58 @@
-import pandas_ta as ta
+import pandas_ta_classic as ta
 import pandas as pd
 
 class TechnicalAnalysis:
     @staticmethod
     def calculate_indicators(df):
-        """Calculate all required indicators."""
-        # Ensure df has enough data
-        if len(df) < 50:  # Minimum for most indicators
-            raise ValueError("Insufficient data for indicators")
-        
-        # Trend
+        """Calculate all required indicators correctly handling multi-column outputs."""
+        if df is None or df.empty:
+            return df
+
+        # 1. Simple Trend Indicators (Return single Series)
         df['ema_20'] = ta.ema(df['close'], length=20)
         df['sma_50'] = ta.sma(df['close'], length=50)
         
-        # Ichimoku (returns DataFrame; join it)
-        ichimoku_df = ta.ichimoku(df['high'], df['low'], df['close'])
-        df = df.join(ichimoku_df, how='left')  # Adds columns like ISA_9, ISB_26, etc.
+        # 2. Indicators that return DataFrames (Multiple Columns)
+        # Use join to merge the new columns into the main dataframe
         
-        df['aroon'] = ta.aroon(df['high'], df['low'], length=14)
-        
-        # Momentum
-        df['rsi'] = ta.rsi(df['close'], length=14)
+        # MACD (returns MACD, Histogram, Signal)
         macd_df = ta.macd(df['close'])
-        df = df.join(macd_df, how='left')  # Adds MACD_12_26_9, MACDh_12_26_9, MACDs_12_26_9
-        
-        df['stoch'] = ta.stoch(df['high'], df['low'], df['close'])
-        
-        # Volume
+        if macd_df is not None:
+            df = df.join(macd_df)
+
+        # Stochastic (returns k and d lines)
+        stoch_df = ta.stoch(df['high'], df['low'], df['close'])
+        if stoch_df is not None:
+            df = df.join(stoch_df)
+
+        # Aroon (returns Up, Down, and Osc)
+        aroon_df = ta.aroon(df['high'], df['low'], length=14)
+        if aroon_df is not None:
+            df = df.join(aroon_df)
+
+        # Bollinger Bands (returns Lower, Mid, Upper, Bandwidth, %B)
+        bbands_df = ta.bbands(df['close'], length=20)
+        if bbands_df is not None:
+            df = df.join(bbands_df)
+
+        # Ichimoku (returns two spans, base, conversion, and lagging)
+        # Ichimoku returns a tuple of two DataFrames; we usually want the first one
+        ichi_data = ta.ichimoku(df['high'], df['low'], df['close'])
+        if ichi_data is not None:
+            df = df.join(ichi_data[0])
+
+        # 3. Momentum & Volume (Single Series)
+        df['rsi'] = ta.rsi(df['close'], length=14)
         df['obv'] = ta.obv(df['close'], df['volume'])
         
-        # Volatility
-        bbands_df = ta.bbands(df['close'], length=20)
-        df = df.join(bbands_df, how='left')  # Adds BBL_20_2.0, BBM_20_2.0, BBU_20_2.0, BBB_20_2.0, BBPercent_20_2.0
-        
-        # Advanced
-        fib_df = ta.fibonacci_retracement(df['high'], df['low'])
-        df = df.join(fib_df, how='left')  # Adds fib levels if applicable
-        
-        # Support/Resistance (simple pivot-based)
+        # ADX (required for AI Regime detector)
+        adx_df = ta.adx(df['high'], df['low'], df['close'], length=14)
+        if adx_df is not None:
+            df = df.join(adx_df)
+
+        # 4. Manual Pivot Calculations
         df['pivot'] = (df['high'] + df['low'] + df['close']) / 3
         df['r1'] = 2 * df['pivot'] - df['low']
         df['s1'] = 2 * df['pivot'] - df['high']
-        
-        # Drop NaNs to avoid length issues
-        df.dropna(inplace=True)
-        
+
         return df
