@@ -1,4 +1,4 @@
-name: Hourly Crypto Bot
+name: Crypto Bot Cycle
 
 on:
   schedule:
