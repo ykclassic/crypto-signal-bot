@@ -1,15 +1,10 @@
-# Core Data & Exchange
 ccxt==4.2.25
 pandas==2.2.2
-pandas-ta-classic==0.3.14b0
+pandas-ta==0.3.14b0
 requests==2.31.0
-
-# AI & Sentiment
 vaderSentiment==3.3.2
 newsapi-python==0.2.7
 tweepy==4.14.0
-
-# Infrastructure
 discord.py==2.3.2
 python-dotenv==1.0.0
-setuptools  # Required to fix 'pkg_resources' error
+setuptools==70.0.0
