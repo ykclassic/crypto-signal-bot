@@ -7,13 +7,13 @@ class TechnicalAnalysis:
 
     def calculate_indicators(self, df):
         """
-        Calculates a robust set of indicators for high-quality filtering:
+        Calculates indicators for high-quality filtering:
         EMA (Trend), RSI (Momentum), ATR (Volatility), and ADX (Strength).
         """
         if df.empty or len(df) < 30:
             return df
         
-        # Numeric conversion
+        # Numeric conversion for safety
         for col in ['high', 'low', 'close']:
             df[col] = pd.to_numeric(df[col])
 
@@ -26,8 +26,7 @@ class TechnicalAnalysis:
         # 3. Volatility: 14-period ATR
         df['atr'] = ta.atr(df['high'], df['low'], df['close'], length=14)
         
-        # 4. Strength: ADX (Directional Movement Index)
-        # We use a custom call to access ADX components
+        # 4. Strength: ADX
         adx_df = ta.adx(df['high'], df['low'], df['close'], length=14)
         if adx_df is not None:
             df['adx'] = adx_df['ADX_14']
