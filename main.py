@@ -9,6 +9,8 @@ from database_manager import DatabaseManager
 
 # Configuration
 TRADING_PAIRS = ["BTC/USDT", "SOL/USDT", "BNB/USDT", "ETH/USDT", "LINK/USDT", "XRP/USDT", "DOGE/USDT", "SUI/USDT", "ADA/USDT"]
+ATR_SL_MULT = 2.0  # Stop Loss at 2x ATR
+ATR_TP_MULT = 4.0  # Take Profit at 4x ATR (1:2 Risk/Reward)
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -18,7 +20,7 @@ def main():
         'GATEIO_SECRET': os.getenv('GATEIO_SECRET'),
         'DISCORD_WEBHOOK_URL': os.getenv('DISCORD_WEBHOOK_URL'),
         'HF_TOKEN': os.getenv('HF_TOKEN'),
-        'DB_PATH': os.getenv('DB_PATH', 'signals.db')
+        'DB_PATH': 'signals.db'
     }
 
     try:
@@ -27,51 +29,74 @@ def main():
         ai_bot = AIRegimeDetector()
         db = DatabaseManager(config['DB_PATH'])
 
-        logging.info(f"🚀 Starting Bot Cycle for {len(TRADING_PAIRS)} pairs...")
-        
+        logging.info("🚀 Starting Advanced MTF & ATR Scan...")
         results_summary = []
 
         for symbol in TRADING_PAIRS:
             try:
-                logging.info(f"🔍 Analyzing {symbol}...")
-                
-                # 1. Fetch Data
-                ohlcv = collector.fetch_data(symbol)
-                if not ohlcv:
-                    logging.warning(f"⚠️ No data for {symbol}, skipping.")
+                # 1. Fetch Multi-Timeframe Data
+                tf_data = {
+                    '1d': collector.fetch_data(symbol, '1d', 100),
+                    '4h': collector.fetch_data(symbol, '4h', 100),
+                    '1h': collector.fetch_data(symbol, '1h', 100)
+                }
+
+                if not all(tf_data.values()):
+                    logging.warning(f"⚠️ Missing timeframe data for {symbol}")
                     continue
 
-                df = pd.DataFrame(ohlcv, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
-                
-                # 2. Indicators & AI
-                df = analyzer.calculate_indicators(df)
-                regime = ai_bot.detect_regime(df)
-                
-                current_price = df['close'].iloc[-1]
-                rsi_val = df['rsi'].iloc[-1] if 'rsi' in df.columns else 0
-                ema_val = df['ema_20'].iloc[-1] if 'ema_20' in df.columns else 0
+                # 2. Analyze Regimes
+                regimes = {}
+                processed_dfs = {}
+                for tf, raw in tf_data.items():
+                    df = pd.DataFrame(raw, columns=['timestamp','open','high','low','close','volume'])
+                    df = analyzer.calculate_indicators(df)
+                    regimes[tf] = ai_bot.detect_regime(df)
+                    processed_dfs[tf] = df
 
-                # 3. Save to SQLite
-                db.save_signal(symbol, current_price, regime, rsi_val, ema_val)
+                # 3. Confirmation Logic
+                is_aligned = (regimes['1h'] == regimes['4h'] == regimes['1d'])
                 
-                # 4. Collect for summary
-                results_summary.append(f"{symbol}: **{regime}** (${current_price:.2f})")
+                # Execution data from 1H
+                df_1h = processed_dfs['1h']
+                current_price = df_1h['close'].iloc[-1]
+                current_atr = df_1h['atr'].iloc[-1]
+                current_rsi = df_1h['rsi'].iloc[-1]
+
+                # 4. ATR-Based Level Calculation
+                sl, tp = None, None
+                if is_aligned:
+                    if regimes['1h'] == "BULLISH":
+                        sl = current_price - (current_atr * ATR_SL_MULT)
+                        tp = current_price + (current_atr * ATR_TP_MULT)
+                    elif regimes['1h'] == "BEARISH":
+                        sl = current_price + (current_atr * ATR_SL_MULT)
+                        tp = current_price - (current_atr * ATR_TP_MULT)
+
+                # 5. Save to Database
+                db.save_signal(symbol, current_price, regimes, current_rsi, current_atr, sl, tp, is_aligned)
+
+                # 6. Prepare Discord Alert
+                if is_aligned and sl and tp:
+                    msg = (f"🔥 **MTF SIGNAL: {regimes['1h']}** - {symbol}\n"
+                           f"∟ Entry (1H): ${current_price:,.2f}\n"
+                           f"∟ ATR SL: ${sl:,.2f} | ATR TP: ${tp:,.2f}\n"
+                           f"∟ 1D: {regimes['1d']} | 4H: {regimes['4h']} | 1H: {regimes['1h']}")
+                    results_summary.append(msg)
                 
-                # Small delay to respect API rate limits
-                time.sleep(0.5)
+                time.sleep(1) # Safety delay for API
 
             except Exception as e:
-                logging.error(f"❌ Error processing {symbol}: {e}")
+                logging.error(f"❌ Error on {symbol}: {e}")
 
-        # 5. Send one batch update to Discord
+        # Final Discord Reporting
         if results_summary:
-            report = "📊 **Hourly Market Scan**\n" + "\n".join(results_summary)
-            collector._send_discord_alert(report)
-
-        logging.info("✅ Full Market Scan Completed.")
+            collector._send_discord_alert("🎯 **CONFIRMED ACTIONABLE SIGNALS**\n" + "\n\n".join(results_summary))
+        else:
+            logging.info("ℹ️ No MTF alignment found this cycle.")
 
     except Exception as e:
-        logging.error(f"❌ Critical Main Loop Failure: {e}")
+        logging.error(f"❌ Critical Failure: {e}")
 
 if __name__ == "__main__":
     main()
