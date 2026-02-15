@@ -1,59 +1,65 @@
-import ccxt
+import os
 import tweepy
-import pandas as pd
-import logging
+import requests
 from newsapi import NewsApiClient
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 
-logger = logging.getLogger(__name__)
-
 class DataCollector:
-    def __init__(self, config):
-        self.config = config
-        self.exchanges = {
-            'xt': ccxt.xt({'apiKey': config['EXCHANGE_API_KEYS']['xt']['apiKey'], 
-                           'secret': config['EXCHANGE_API_KEYS']['xt']['secret']}),
-            'bitget': ccxt.bitget({'apiKey': config['EXCHANGE_API_KEYS']['bitget']['apiKey'], 
-                                   'secret': config['EXCHANGE_API_KEYS']['bitget']['secret']}),
-            'gateio': ccxt.gateio({'apiKey': config['EXCHANGE_API_KEYS']['gateio']['apiKey'], 
-                                   'secret': config['EXCHANGE_API_KEYS']['gateio']['secret']})
-        }
-        self.newsapi = NewsApiClient(api_key=config['NEWS_API_KEY'])
-        self.sentiment_analyzer = SentimentIntensityAnalyzer()
-        self.twitter_client = tweepy.Client(bearer_token=config['TWITTER_BEARER_TOKEN'])
-
-    def fetch_ohlcv(self, ticker, timeframe, limit=100):
-        for name, exchange in self.exchanges.items():
+    def __init__(self):
+        # API Keys from Environment
+        self.twitter_token = os.getenv('TWITTER_BEARER_TOKEN')
+        self.news_api_key = os.getenv('NEWS_API_KEY')
+        
+        # Initialize Sentiment Analyzer
+        self.analyzer = SentimentIntensityAnalyzer()
+        
+        # Safe Initialize Twitter
+        self.twitter_client = None
+        if self.twitter_token:
             try:
-                data = exchange.fetch_ohlcv(ticker, timeframe=timeframe, limit=limit)
-                df = pd.DataFrame(data, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
-                df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
-                return df
+                self.twitter_client = tweepy.Client(bearer_token=self.twitter_token)
             except Exception as e:
-                logger.warning(f"Failed to fetch from {name}: {e}")
-        raise Exception(f"All exchanges failed for {ticker}")
+                print(f"Twitter Auth failed: {e}")
 
-    def fetch_sentiment_data(self, ticker):
+    def get_sentiment(self, symbol):
+        """Fetch sentiment from Twitter, fallback to NewsAPI if 402 or failed."""
         sentiment_score = 0
-        count = 0
-        try:
-            query = f"{ticker} lang:en"
-            tweets = self.twitter_client.search_recent_tweets(query=query, max_results=10)
-            if tweets.data:
-                for tweet in tweets.data:
-                    score = self.sentiment_analyzer.polarity_scores(tweet.text)['compound']
-                    sentiment_score += score
-                    count += 1
-        except Exception as e:
-            logger.warning(f"Twitter fetch failed: {e}")
+        sources_used = 0
+        
+        # 1. Attempt Twitter (X)
+        if self.twitter_client:
+            try:
+                query = f"#{symbol} crypto -is:retweet lang:en"
+                tweets = self.twitter_client.search_recent_tweets(query=query, max_results=10)
+                if tweets.data:
+                    for tweet in tweets.data:
+                        sentiment_score += self.analyzer.polarity_scores(tweet.text)['compound']
+                        sources_used += 1
+            except Exception as e:
+                if "402" in str(e):
+                    print(f"Twitter API 402: Credits exhausted. Switching to NewsAPI for {symbol}.")
+                else:
+                    print(f"Twitter error for {symbol}: {e}")
 
-        try:
-            articles = self.newsapi.get_everything(q=ticker, language='en', page_size=10)
-            for article in articles['articles']:
-                score = self.sentiment_analyzer.polarity_scores(article['title'])['compound']
-                sentiment_score += score
-                count += 1
-        except Exception as e:
-            logger.warning(f"News fetch failed: {e}")
+        # 2. Fallback / Augment with NewsAPI
+        if self.news_api_key:
+            try:
+                newsapi = NewsApiClient(api_key=self.news_api_key)
+                articles = newsapi.get_everything(q=symbol, language='en', sort_by='relevancy', page_size=5)
+                for article in articles.get('articles', []):
+                    text = f"{article['title']} {article['description']}"
+                    sentiment_score += self.analyzer.polarity_scores(text)['compound']
+                    sources_used += 1
+            except Exception as e:
+                print(f"NewsAPI error: {e}")
 
-        return sentiment_score / count if count > 0 else 0
+        return sentiment_score / sources_used if sources_used > 0 else 0
+
+    def get_market_data(self, exchange, symbol, timeframe='1h'):
+        """Fetch OHLCV data from CCXT."""
+        try:
+            ohlcv = exchange.fetch_ohlcv(symbol, timeframe, limit=100)
+            return ohlcv
+        except Exception as e:
+            print(f"Market data fetch failed for {symbol}: {e}")
+            return None
