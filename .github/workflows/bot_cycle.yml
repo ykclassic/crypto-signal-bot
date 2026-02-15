@@ -8,15 +8,12 @@ on:
 jobs:
   trade-cycle:
     runs-on: ubuntu-latest
-    # CRITICAL: Grant permission to push code/files back to the repo
     permissions:
       contents: write
     
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -32,28 +29,17 @@ jobs:
       - name: Run Trading Bot
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
-          BITGET_API_KEY: ${{ secrets.BITGET_API_KEY }}
-          BITGET_SECRET: ${{ secrets.BITGET_SECRET }}
-          BITGET_PASSWORD: ${{ secrets.BITGET_PASSWORD }}
           GATEIO_API_KEY: ${{ secrets.GATEIO_API_KEY }}
           GATEIO_SECRET: ${{ secrets.GATEIO_SECRET }}
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
           DB_PATH: signals.db
         run: python main.py
 
-      - name: Commit and Push Changes
+      - name: Sync Database
         if: always()
         run: |
           git config --local user.name "github-actions[bot]"
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
-          
-          # Add the database file
           git add signals.db
-          
-          # Commit only if there are changes
-          if ! git diff --cached --quiet; then
-            git commit -m "🤖 Update signals.db [skip ci]"
-            git push origin main
-          else
-            echo "No changes detected in signals.db"
-          fi
+          # Avoid error if no changes occurred
+          git diff --staged --quiet || (git commit -m "🤖 Scan Update: 9 Pairs Logged" && git push)
