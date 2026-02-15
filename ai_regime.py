@@ -4,31 +4,32 @@ import pandas as pd
 class AIRegimeDetector:
     def __init__(self):
         """
-        Initializes the AI model using TensorFlow to avoid PyTorch dependencies.
-        Falls back to rule-based sentiment if model loading fails.
+        Initializes the AI model. Falls back to technical-only analysis if unavailable.
         """
         self.sentiment_pipeline = None
         
         try:
+            # Check for PyTorch first
+            try:
+                import torch
+                logging.info(f"PyTorch {torch.__version__} detected")
+            except ImportError:
+                logging.warning("PyTorch not available - sentiment analysis disabled")
+                return
+            
+            # Try loading the model
             from transformers import pipeline
-            import tensorflow as tf
             
-            logging.info(f"Loading model with TensorFlow {tf.__version__}")
-            
-            # Use a TensorFlow-native model or one with better TF support
             self.sentiment_pipeline = pipeline(
                 "sentiment-analysis",
                 model="cardiffnlp/twitter-roberta-base-sentiment",
-                framework="tf",
-                truncation=True
+                framework="pt"  # Use PyTorch since it's available
             )
             logging.info("AIRegimeDetector: Successfully loaded sentiment model.")
             
-        except ImportError as e:
-            logging.error(f"Missing dependencies: {e}")
         except Exception as e:
-            logging.error(f"Could not load AI model: {e}")
-            logging.info("Falling back to technical-only regime detection.")
+            logging.warning(f"AIRegimeDetector: Could not load AI model: {e}")
+            logging.info("Continuing with technical analysis only.")
     
     def detect_regime(self, df):
         """
@@ -43,22 +44,27 @@ class AIRegimeDetector:
         if df is None or df.empty:
             logging.warning("Empty dataframe passed to detect_regime")
             return "UNKNOWN"
-            
+        
         if 'close' not in df.columns:
             logging.error("DataFrame missing 'close' column")
             return "UNKNOWN"
         
         try:
-            # Need at least 20 periods for SMA calculation
+            # Need at least 20 periods for SMA
             if len(df) < 20:
-                logging.warning(f"Insufficient data: {len(df)} rows (need 20+)")
+                logging.warning(f"Insufficient data for regime: {len(df)} rows (need 20+)")
                 return "UNKNOWN"
             
             last_close = df['close'].iloc[-1]
             sma_20 = df['close'].rolling(window=20).mean().iloc[-1]
             
-            # Add threshold to avoid false signals in ranging markets
-            threshold = 0.02  # 2% threshold
+            # Check for NaN
+            if pd.isna(last_close) or pd.isna(sma_20):
+                logging.warning("NaN values in regime calculation")
+                return "UNKNOWN"
+            
+            # 2% threshold to avoid noise
+            threshold = 0.02
             diff_pct = (last_close - sma_20) / sma_20
             
             if diff_pct > threshold:
@@ -74,14 +80,13 @@ class AIRegimeDetector:
     
     def get_sentiment(self, text):
         """
-        Analyzes text sentiment using RoBERTa model.
+        Analyzes text sentiment. Returns 0 if model unavailable.
         
         Args:
             text: String to analyze
             
         Returns:
             float: Sentiment score in range [-1, 1]
-                  -1 = most negative, 0 = neutral, 1 = most positive
         """
         if not text or not isinstance(text, str):
             return 0.0
@@ -91,8 +96,7 @@ class AIRegimeDetector:
             return 0.0
         
         try:
-            # Model handles truncation internally when truncation=True is set
-            result = self.sentiment_pipeline(text)[0]
+            result = self.sentiment_pipeline(text, truncation=True, max_length=512)[0]
             
             # Cardiff NLP RoBERTa sentiment labels
             label_mapping = {
@@ -105,8 +109,6 @@ class AIRegimeDetector:
             confidence = result.get('score', 0.0)
             
             sentiment_value = label_mapping.get(label, 0.0)
-            
-            # Return weighted sentiment
             return sentiment_value * confidence
             
         except Exception as e:
