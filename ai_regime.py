@@ -4,50 +4,65 @@ from transformers import pipeline
 
 class AIRegimeDetector:
     def __init__(self):
+        """
+        Initializes the AI model using TensorFlow (tf) to avoid PyTorch dependencies.
+        """
         try:
-            # Explicitly set framework to "tf" (TensorFlow) to avoid torch NameError
-            # The cardiffnlp model supports both PT and TF weights
+            # framework="tf" is mandatory because the runner lacks PyTorch
             self.sentiment_pipeline = pipeline(
                 "sentiment-analysis", 
                 model="cardiffnlp/twitter-roberta-base-sentiment",
-                framework="tf" 
+                framework="tf"
             )
-            logging.info("AI Regime Detector initialized with TensorFlow.")
+            logging.info("AIRegimeDetector: Successfully loaded model with TensorFlow.")
         except Exception as e:
-            logging.error(f"Failed to load AI model: {e}. Sentiment analysis will be disabled.")
+            logging.error(f"AIRegimeDetector: Could not load AI model: {e}")
             self.sentiment_pipeline = None
 
     def detect_regime(self, df):
         """
-        Determines market regime (Bullish, Bearish, Sideways).
+        Determines market regime. Matches the call in main.py.
         """
-        if df is None or df.empty:
-            return "Unknown"
+        if df is None or df.empty or 'close' not in df.columns:
+            return "UNKNOWN"
             
-        # Example logic: Using the last close vs a simple moving average
-        # In a real setup, this would use your ML model logic
-        last_close = df['close'].iloc[-1]
-        sma_20 = df['close'].rolling(window=20).mean().iloc[-1]
-        
-        if last_close > sma_20:
-            return "Trending Bullish"
-        elif last_close < sma_20:
-            return "Trending Bearish"
-        return "Ranging"
-
-    def analyze_sentiment(self, text):
-        """Safe sentiment analysis wrapper."""
-        if not self.sentiment_pipeline:
-            return 0
         try:
-            result = self.sentiment_pipeline(text[:512]) # Truncate for RoBERTa limits
-            # RoBERTa output: LABEL_0 (Neg), LABEL_1 (Neu), LABEL_2 (Pos)
-            label = result[0]['label']
-            score = result[0]['score']
+            # Technical regime detection as a primary logic
+            last_close = df['close'].iloc[-1]
+            sma_20 = df['close'].rolling(window=20).mean().iloc[-1]
             
-            if label == 'LABEL_2': return score
-            if label == 'LABEL_0': return -score
-            return 0
+            if last_close > sma_20:
+                return "BULLISH"
+            elif last_close < sma_20:
+                return "BEARISH"
+            return "RANGING"
         except Exception as e:
-            logging.error(f"Sentiment pipe error: {e}")
+            logging.error(f"Error in regime detection logic: {e}")
+            return "UNKNOWN"
+
+    def get_sentiment(self, text):
+        """
+        Analyzes text sentiment. RoBERTa labels: 
+        LABEL_0 -> Negative, LABEL_1 -> Neutral, LABEL_2 -> Positive
+        """
+        if not self.sentiment_pipeline or not text:
+            return 0
+            
+        try:
+            # Truncate text to 512 tokens to prevent model overflow
+            result = self.sentiment_pipeline(text[:512])[0]
+            
+            # Label mapping for cardiffnlp/twitter-roberta-base-sentiment
+            mapping = {
+                "LABEL_0": -1, # Negative
+                "LABEL_1": 0,  # Neutral
+                "LABEL_2": 1   # Positive
+            }
+            
+            label = result.get('label')
+            score = result.get('score', 0)
+            
+            return mapping.get(label, 0) * score
+        except Exception as e:
+            logging.error(f"Sentiment analysis processing error: {e}")
             return 0
