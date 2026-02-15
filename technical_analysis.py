@@ -7,30 +7,30 @@ class TechnicalAnalysis:
 
     def calculate_indicators(self, df):
         """
-        Calculates indicators for high-quality filtering:
-        EMA (Trend), RSI (Momentum), ATR (Volatility), and ADX (Strength).
+        Calculates a robust set of indicators for filtering and ML training.
+        Maintains all previous features (EMA, RSI, ATR, ADX).
         """
         if df.empty or len(df) < 30:
             return df
         
-        # Numeric conversion for safety
-        for col in ['high', 'low', 'close']:
+        # Numeric conversion
+        for col in ['high', 'low', 'close', 'volume']:
             df[col] = pd.to_numeric(df[col])
 
-        # 1. Trend: 20-period EMA
+        # Existing Indicators
         df['ema_20'] = ta.ema(df['close'], length=20)
-        
-        # 2. Momentum: 14-period RSI
         df['rsi'] = ta.rsi(df['close'], length=14)
-        
-        # 3. Volatility: 14-period ATR
         df['atr'] = ta.atr(df['high'], df['low'], df['close'], length=14)
         
-        # 4. Strength: ADX
         adx_df = ta.adx(df['high'], df['low'], df['close'], length=14)
-        if adx_df is not None:
-            df['adx'] = adx_df['ADX_14']
-        else:
-            df['adx'] = 0
+        df['adx'] = adx_df['ADX_14'] if adx_df is not None else 0
+
+        # New ML Features
+        # 1. Volume Relative to its 20-period average
+        df['vol_sma'] = ta.sma(df['volume'], length=20)
+        df['vol_ratio'] = df['volume'] / df['vol_sma']
+        
+        # 2. Price Change % (Momentum feature)
+        df['pcnt_change'] = df['close'].pct_change(periods=5) * 100
 
         return df
