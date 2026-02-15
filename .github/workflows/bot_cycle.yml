@@ -8,30 +8,29 @@ on:
 jobs:
   trade-cycle:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    # CRITICAL: Grant permission to push code/files back to the repo
     permissions:
       contents: write
     
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-          cache: 'pip'
 
-      - name: Install Python Dependencies
+      - name: Install Dependencies
         run: |
-          python -m pip install --upgrade pip setuptools wheel
-          pip install pandas==2.2.2 requests ccxt>=4.2.25
-          pip install -r requirements.txt
-          pip install pandas-ta-classic==0.3.59
+          python -m pip install --upgrade pip
+          pip install pandas==2.2.2 requests ccxt>=4.2.25 pandas-ta-classic==0.3.59
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
       - name: Run Trading Bot
         env:
-          # These LEFT side names must match what you use in os.getenv() or config.get()
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
           BITGET_API_KEY: ${{ secrets.BITGET_API_KEY }}
           BITGET_SECRET: ${{ secrets.BITGET_SECRET }}
@@ -39,13 +38,22 @@ jobs:
           GATEIO_API_KEY: ${{ secrets.GATEIO_API_KEY }}
           GATEIO_SECRET: ${{ secrets.GATEIO_SECRET }}
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
-          DB_PATH: ./signals.db
+          DB_PATH: signals.db
         run: python main.py
 
-      - name: Sync Database
-        if: success()
+      - name: Commit and Push Changes
+        if: always()
         run: |
           git config --local user.name "github-actions[bot]"
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # Add the database file
           git add signals.db
-          git diff --staged --quiet || (git commit -m "update signals" && git push)
+          
+          # Commit only if there are changes
+          if ! git diff --cached --quiet; then
+            git commit -m "🤖 Update signals.db [skip ci]"
+            git push origin main
+          else
+            echo "No changes detected in signals.db"
+          fi
