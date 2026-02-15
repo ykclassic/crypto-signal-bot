@@ -1,7 +1,6 @@
-# Configuration file for API keys and settings
 import os
 
-# API Keys (Load from env vars if available, else use placeholders)
+# API Keys (Load from env vars if available)
 EXCHANGE_API_KEYS = {
     'xt': {
         'apiKey': os.getenv('XT_API_KEY', 'your_xt_api_key'),
@@ -16,12 +15,13 @@ EXCHANGE_API_KEYS = {
         'secret': os.getenv('GATEIO_SECRET', 'your_gateio_secret')
     }
 }
+
 NEWS_API_KEY = os.getenv('NEWS_API_KEY', 'your_newsapi_key')
 DISCORD_WEBHOOK_URL = os.getenv('DISCORD_WEBHOOK_URL', 'your_discord_webhook_url')
-TWITTER_BEARER_TOKEN = os.getenv('TWITTER_BEARER_TOKEN', 'your_twitter_bearer_token')  # For tweepy
+TWITTER_BEARER_TOKEN = os.getenv('TWITTER_BEARER_TOKEN', 'your_twitter_bearer_token')
 
-# Other settings
-TICKERS = ['BTC/USDT', 'ETH/USDT', 'BNB/USDT', 'SOL/USDT', 'LINK/USDT', 'XRP/USDT', 'ADA/USDT']  # Focus tickers
+# Strategy Settings
+TICKERS = ['BTC/USDT', 'ETH/USDT', 'BNB/USDT', 'SOL/USDT', 'LINK/USDT', 'XRP/USDT', 'ADA/USDT']
 TIMEFRAMES = ['1h', '4h', '1d']
 DB_PATH = 'signals.db'
-LOG_LEVEL = 'INFO'  # Added back for logging
+LOG_LEVEL = 'INFO'
