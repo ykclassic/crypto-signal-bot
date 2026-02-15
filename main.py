@@ -9,10 +9,32 @@ from database_manager import DatabaseManager
 
 # Configuration
 TRADING_PAIRS = ["BTC/USDT", "SOL/USDT", "BNB/USDT", "ETH/USDT", "LINK/USDT", "XRP/USDT", "DOGE/USDT", "SUI/USDT", "ADA/USDT"]
-ATR_SL_MULT = 2.0  # Stop Loss at 2x ATR
-ATR_TP_MULT = 4.0  # Take Profit at 4x ATR (1:2 Risk/Reward)
+ADX_THRESHOLD = 25  # Only trade strong trends
+ATR_SL_MULT = 2.0
+ATR_TP_MULT = 4.0
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+def is_high_quality(df, regime):
+    """
+    Quality Filter:
+    - ADX must be > 25 (Strong trend)
+    - RSI must not be Overbought (>70) for Longs
+    - RSI must not be Oversold (<30) for Shorts
+    """
+    current_rsi = df['rsi'].iloc[-1]
+    current_adx = df.get('adx', pd.Series([0])).iloc[-1]
+    
+    if current_adx < ADX_THRESHOLD:
+        return False, "Weak Trend (Low ADX)"
+    
+    if regime == "BULLISH" and current_rsi > 70:
+        return False, "Overbought RSI"
+    
+    if regime == "BEARISH" and current_rsi < 30:
+        return False, "Oversold RSI"
+        
+    return True, "High Quality"
 
 def main():
     config = {
@@ -29,71 +51,60 @@ def main():
         ai_bot = AIRegimeDetector()
         db = DatabaseManager(config['DB_PATH'])
 
-        logging.info("🚀 Starting Advanced MTF & ATR Scan...")
-        results_summary = []
+        logging.info("🚀 Starting Quality-Filtered MTF Scan...")
+        quality_signals = []
 
         for symbol in TRADING_PAIRS:
             try:
                 # 1. Fetch Multi-Timeframe Data
-                tf_data = {
-                    '1d': collector.fetch_data(symbol, '1d', 100),
-                    '4h': collector.fetch_data(symbol, '4h', 100),
-                    '1h': collector.fetch_data(symbol, '1h', 100)
-                }
+                tf_data = {tf: collector.fetch_data(symbol, tf, 100) for tf in ['1d', '4h', '1h']}
+                if not all(tf_data.values()): continue
 
-                if not all(tf_data.values()):
-                    logging.warning(f"⚠️ Missing timeframe data for {symbol}")
-                    continue
-
-                # 2. Analyze Regimes
+                # 2. Analyze Regimes & Indicators
                 regimes = {}
-                processed_dfs = {}
+                dfs = {}
                 for tf, raw in tf_data.items():
-                    df = pd.DataFrame(raw, columns=['timestamp','open','high','low','close','volume'])
-                    df = analyzer.calculate_indicators(df)
+                    df = analyzer.calculate_indicators(pd.DataFrame(raw, columns=['timestamp','open','high','low','close','volume']))
                     regimes[tf] = ai_bot.detect_regime(df)
-                    processed_dfs[tf] = df
+                    dfs[tf] = df
 
-                # 3. Confirmation Logic
+                # 3. Triple Confirmation & Quality Filter
                 is_aligned = (regimes['1h'] == regimes['4h'] == regimes['1d'])
+                high_quality, reason = is_high_quality(dfs['1h'], regimes['1h'])
                 
-                # Execution data from 1H
-                df_1h = processed_dfs['1h']
-                current_price = df_1h['close'].iloc[-1]
-                current_atr = df_1h['atr'].iloc[-1]
-                current_rsi = df_1h['rsi'].iloc[-1]
-
-                # 4. ATR-Based Level Calculation
-                sl, tp = None, None
-                if is_aligned:
-                    if regimes['1h'] == "BULLISH":
-                        sl = current_price - (current_atr * ATR_SL_MULT)
-                        tp = current_price + (current_atr * ATR_TP_MULT)
-                    elif regimes['1h'] == "BEARISH":
-                        sl = current_price + (current_atr * ATR_SL_MULT)
-                        tp = current_price - (current_atr * ATR_TP_MULT)
-
-                # 5. Save to Database
-                db.save_signal(symbol, current_price, regimes, current_rsi, current_atr, sl, tp, is_aligned)
-
-                # 6. Prepare Discord Alert
-                if is_aligned and sl and tp:
-                    msg = (f"🔥 **MTF SIGNAL: {regimes['1h']}** - {symbol}\n"
-                           f"∟ Entry (1H): ${current_price:,.2f}\n"
-                           f"∟ ATR SL: ${sl:,.2f} | ATR TP: ${tp:,.2f}\n"
-                           f"∟ 1D: {regimes['1d']} | 4H: {regimes['4h']} | 1H: {regimes['1h']}")
-                    results_summary.append(msg)
+                # Data for DB/Discord
+                df_1h = dfs['1h']
+                price = df_1h['close'].iloc[-1]
+                atr = df_1h['atr'].iloc[-1]
+                rsi = df_1h['rsi'].iloc[-1]
                 
-                time.sleep(1) # Safety delay for API
+                sl = price - (atr * ATR_SL_MULT) if regimes['1h'] == "BULLISH" else price + (atr * ATR_SL_MULT)
+                tp = price + (atr * ATR_TP_MULT) if regimes['1h'] == "BULLISH" else price - (atr * ATR_TP_MULT)
+
+                # 4. Save Every Attempt to Database
+                db.save_signal(symbol, price, regimes, rsi, atr, sl, tp, (is_aligned and high_quality))
+
+                # 5. Only Alert if Alignment + Quality matches
+                if is_aligned and high_quality:
+                    quality_signals.append(
+                        f"🌟 **HIGH CONVICTION: {regimes['1h']}** - {symbol}\n"
+                        f"∟ Entry: ${price:,.2f} | SL: ${sl:,.2f} | TP: ${tp:,.2f}\n"
+                        f"∟ Quality Check: {reason} | ADX: {df_1h['adx'].iloc[-1]:.1f}"
+                    )
+                else:
+                    status = "Unaligned" if not is_aligned else f"Filtered ({reason})"
+                    logging.info(f"⏭️ {symbol}: {status}")
+
+                time.sleep(1)
 
             except Exception as e:
                 logging.error(f"❌ Error on {symbol}: {e}")
 
-        # Final Discord Reporting
-        if results_summary:
-            collector._send_discord_alert("🎯 **CONFIRMED ACTIONABLE SIGNALS**\n" + "\n\n".join(results_summary))
+        # Final Discord Alert
+        if quality_signals:
+            collector._send_discord_alert("💎 **ELITE MARKET SIGNALS**\n" + "\n\n".join(quality_signals))
         else:
-            logging.info("ℹ️ No MTF alignment found this cycle.")
+            logging.info("ℹ️ No elite setups found this hour.")
 
     except Exception as e:
         logging.error(f"❌ Critical Failure: {e}")
