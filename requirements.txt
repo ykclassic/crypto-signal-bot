@@ -1,9 +1,16 @@
-discord.py>=2.3.0
-pandas-ta-classic
-tensorflow-cpu
-transformers
-tweepy
-ccxt
-vaderSentiment
-newsapi-python
-python-dotenv
+# Core Data & Exchange
+ccxt==4.2.25
+pandas==2.0.3
+pandas-ta-classic==0.3.14b0
+requests==2.31.0
+
+# AI & Sentiment
+tensorflow-cpu==2.15.0
+transformers==4.36.0
+vaderSentiment==3.3.2
+newsapi-python==0.2.7
+tweepy==4.14.0
+
+# Infrastructure
+discord.py==2.3.2
+python-dotenv==1.0.0
