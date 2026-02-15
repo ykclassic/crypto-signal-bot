@@ -1,6 +1,7 @@
 ccxt
 pandas
-pandas_ta
+# Pull the latest stable version of pandas-ta directly
+https://github.com/twopirllc/pandas-ta/archive/master.zip
 tensorflow
 transformers
 tweepy
