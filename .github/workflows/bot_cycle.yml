@@ -1,4 +1,4 @@
-name: Hourly Crypto Bot Cycle
+name: Hourly Crypto Bot cycle
 
 on:
   schedule:
@@ -24,9 +24,14 @@ jobs:
       - name: Install Dependencies
         run: |
           python -m pip install --upgrade pip
-          # Explicitly install tensorflow-cpu to save space and avoid torch dependencies
-          pip install tensorflow-cpu transformers pandas-ta-classic vaderSentiment newsapi-python tweepy ccxt
-          pip list | grep -E "tensorflow|transformers|pandas-ta"
+          # Force installation of core components
+          pip install discord.py pandas-ta-classic tensorflow-cpu transformers ccxt newsapi-python vaderSentiment tweepy
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          
+      - name: Pre-Flight Check
+        run: |
+          echo "Checking installed modules..."
+          python -c "import discord; import pandas_ta_classic; import tensorflow; print('✅ All modules verified')"
 
       - name: Run Bot
         env:
@@ -40,6 +45,13 @@ jobs:
           NEWS_API_KEY: ${{ secrets.NEWS_API_KEY }}
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
           TWITTER_BEARER_TOKEN: ${{ secrets.TWITTER_BEARER_TOKEN }}
+          # Map variables specifically for your config.py logic
+          EXCHANGE_API_KEYS_XT_APIKEY: ${{ secrets.XT_API_KEY }}
+          EXCHANGE_API_KEYS_XT_SECRET: ${{ secrets.XT_SECRET }}
+          EXCHANGE_API_KEYS_BITGET_APIKEY: ${{ secrets.BITGET_API_KEY }}
+          EXCHANGE_API_KEYS_BITGET_SECRET: ${{ secrets.BITGET_SECRET }}
+          EXCHANGE_API_KEYS_GATEIO_APIKEY: ${{ secrets.GATEIO_API_KEY }}
+          EXCHANGE_API_KEYS_GATEIO_SECRET: ${{ secrets.GATEIO_SECRET }}
         run: python main.py
 
       - name: Sync Database
