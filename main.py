@@ -4,8 +4,9 @@ import pandas as pd
 from data_collection import DataCollector
 from technical_analysis import TechnicalAnalysis
 from ai_regime import AIRegimeDetector
+from database_manager import DatabaseManager  # Import your new file
 
-# Enhanced Logging
+# Setup Logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 def main():
@@ -16,42 +17,41 @@ def main():
         'GATEIO_API_KEY': os.getenv('GATEIO_API_KEY'),
         'GATEIO_SECRET': os.getenv('GATEIO_SECRET'),
         'DISCORD_WEBHOOK_URL': os.getenv('DISCORD_WEBHOOK_URL'),
-        'HF_TOKEN': os.getenv('HF_TOKEN')
+        'HF_TOKEN': os.getenv('HF_TOKEN'),
+        'DB_PATH': os.getenv('DB_PATH', 'signals.db')
     }
 
     try:
         collector = DataCollector(config)
         analyzer = TechnicalAnalysis()
         ai_bot = AIRegimeDetector()
+        db = DatabaseManager(config['DB_PATH'])
 
         logging.info("🚀 Starting Bot Cycle...")
         
-        # 1. Fetch OHLCV Data
+        # 1. Fetch Data
         ohlcv = collector.fetch_data("BTC/USDT")
         if not ohlcv:
-            logging.error("❌ No market data returned from exchange.")
             return
 
         df = pd.DataFrame(ohlcv, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
-        current_price = df['close'].iloc[-1]
-        logging.info(f"📊 Market Data Fetched: BTC is at ${current_price}")
-
-        # 2. Technical Analysis
-        df = analyzer.calculate_indicators(df)
         
-        # 3. AI Regime Check
-        # Passing recent price action for sentiment/regime
+        # 2. Analyze
+        df = analyzer.calculate_indicators(df)
         regime = ai_bot.detect_regime(df)
-        logging.info(f"🧠 AI Market Regime: {regime}")
+        
+        # Get latest values for DB
+        current_price = df['close'].iloc[-1]
+        rsi_val = df['rsi'].iloc[-1] if 'rsi' in df.columns else 0
+        ema_val = df['ema_20'].iloc[-1] if 'ema_20' in df.columns else 0
 
-        # 4. Decision Logic & Discord Notification
-        # We send a "Heartbeat" to Discord so you KNOW it's working
-        status_msg = f"🔄 **Hourly Update**: BTC is ${current_price:.2f} | Regime: **{regime}**"
+        # 3. Save to SQLite
+        db.save_signal("BTC/USDT", current_price, regime, rsi_val, ema_val)
+        logging.info(f"💾 Signal saved: {regime} at ${current_price}")
+
+        # 4. Discord Alert
+        status_msg = f"✅ **Cycle Complete**: BTC at ${current_price:.2f} | Regime: {regime}"
         collector._send_discord_alert(status_msg)
-
-        # 5. Save to Database (Always save the state, even if no trade)
-        # Logic to append to signals.db would go here
-        logging.info(f"✅ Cycle Completed. Signals saved to {os.getenv('DB_PATH')}")
 
     except Exception as e:
         logging.error(f"❌ Main Loop Error: {e}")
