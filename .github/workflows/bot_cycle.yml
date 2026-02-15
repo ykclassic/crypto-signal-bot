@@ -31,10 +31,11 @@ jobs:
 
       - name: Run Trading Bot
         env:
+          # These LEFT side names must match what you use in os.getenv() or config.get()
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
           BITGET_API_KEY: ${{ secrets.BITGET_API_KEY }}
           BITGET_SECRET: ${{ secrets.BITGET_SECRET }}
-          BITGET_PASSWORD: ${{ secrets.BITGET_PASSWORD }} # Added this
+          BITGET_PASSWORD: ${{ secrets.BITGET_PASSWORD }}
           GATEIO_API_KEY: ${{ secrets.GATEIO_API_KEY }}
           GATEIO_SECRET: ${{ secrets.GATEIO_SECRET }}
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
