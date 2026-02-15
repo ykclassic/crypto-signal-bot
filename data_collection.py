@@ -10,15 +10,23 @@ class DataCollector:
         self.exchange = None 
         self.exchange = self._initialize_exchange(config)
 
-    def _send_discord_alert(self, message):
-        """Sends a quick notification to Discord."""
+        def _send_discord_alert(self, message):
         if not self.webhook_url:
+            logging.error("❌ No Discord Webhook URL found in environment!")
             return
         try:
-            payload = {"content": f"⚠️ **Bot Alert:** {message}"}
-            requests.post(self.webhook_url, json=payload, timeout=10)
+            response = requests.post(
+                self.webhook_url, 
+                json={"content": message}, 
+                timeout=10
+            )
+            if response.status_code == 204:
+                logging.info("🚀 Discord alert sent successfully.")
+            else:
+                logging.error(f"❌ Discord failed: {response.status_code} - {response.text}")
         except Exception as e:
-            logging.error(f"Failed to send Discord alert: {e}")
+            logging.error(f"❌ Discord Exception: {e}")
+
 
     def _initialize_exchange(self, config):
         """Attempts Bitget, then Gate.io as fallback."""
