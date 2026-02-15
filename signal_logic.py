@@ -1,9 +1,6 @@
 class SignalLogic:
     @staticmethod
     def generate_signal(ticker, dfs, regime, sentiment):
-        """Generate signal based on consensus across timeframes with correct column mapping."""
-        
-        # Ensure dataframes exist for all timeframes
         if not all(tf in dfs for tf in ['1h', '4h', '1d']):
             return None
             
@@ -11,23 +8,18 @@ class SignalLogic:
 
         def is_bullish(df):
             try:
-                # pandas-ta Ichimoku Span A is usually 'ISA_9'
-                # RSI is 'RSI_14'
-                # Check for standard column names produced by pandas-ta-classic
+                # pandas-ta naming: Span A = ISA_9, RSI = RSI_14
                 span_a = df['ISA_9'].iloc[-1]
                 rsi = df['RSI_14'].iloc[-1]
                 close = df['close'].iloc[-1]
-                
                 return (close > span_a) and (rsi > 50)
             except KeyError:
-                # Fallback if indicators failed to calculate
                 return False
 
         bullish_h1 = is_bullish(h1)
         bullish_h4 = is_bullish(h4)
         bullish_d1 = is_bullish(d1)
 
-        # Logic for Signal Side
         if bullish_h1 and bullish_h4 and bullish_d1 and sentiment > 0:
             side = 'LONG'
         elif not bullish_h1 and not bullish_h4 and not bullish_d1 and sentiment < 0:
@@ -35,14 +27,11 @@ class SignalLogic:
         else:
             return None
 
-        # Trade type determination based on Volatility
+        # Volatility & Regime logic
         try:
-            # Standard BB names: Upper = BBU_20_2.0, Lower = BBL_20_2.0
-            upper_band = h1['BBU_20_2.0'].iloc[-1]
-            lower_band = h1['BBL_20_2.0'].iloc[-1]
-            current_close = h1['close'].iloc[-1]
-            
-            volatility = (upper_band - lower_band) / current_close
+            upper = h1['BBU_20_2.0'].iloc[-1]
+            lower = h1['BBL_20_2.0'].iloc[-1]
+            volatility = (upper - lower) / h1['close'].iloc[-1]
         except KeyError:
             volatility = 0
 
@@ -53,14 +42,8 @@ class SignalLogic:
         else:
             trade_type = 'Day Trading'
 
-        # Calculate Confidence Score
-        # (Using a simple float calculation as requested)
-        score = 0
-        if bullish_h1: score += 1
-        if bullish_h4: score += 1
-        if bullish_d1: score += 1
-        if sentiment > 0: score += 1
-        
+        # Confidence Calculation
+        score = sum([bullish_h1, bullish_h4, bullish_d1, sentiment > 0])
         confidence = score / 4.0
 
         return {
