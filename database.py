@@ -1,5 +1,4 @@
 import sqlite3
-import json
 from datetime import datetime
 
 class SignalDatabase:
@@ -36,7 +35,3 @@ class SignalDatabase:
     def remove_signal(self, signal_id):
         with sqlite3.connect(self.db_path) as conn:
             conn.execute('DELETE FROM active_signals WHERE id = ?', (signal_id,))
-
-    def update_signal(self, signal_id, **kwargs):
-        # Placeholder for updates if needed
-        pass
