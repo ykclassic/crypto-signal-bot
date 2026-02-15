@@ -22,9 +22,7 @@ jobs:
 
       - name: Install Dependencies
         run: |
-          python -m pip install --upgrade pip
           pip install pandas==2.2.2 requests ccxt>=4.2.25 pandas-ta-classic==0.3.59
-          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
       - name: Run Trading Bot
         env:
@@ -35,11 +33,15 @@ jobs:
           DB_PATH: signals.db
         run: python main.py
 
+      - name: Verify DB Growth
+        run: |
+          ls -lh signals.db
+          sqlite3 signals.db "SELECT COUNT(*) FROM signals;" || echo "Table not found yet"
+
       - name: Sync Database
         if: always()
         run: |
           git config --local user.name "github-actions[bot]"
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git add signals.db
-          # Avoid error if no changes occurred
-          git diff --staged --quiet || (git commit -m "🤖 Scan Update: 9 Pairs Logged" && git push)
+          git diff --staged --quiet || (git commit -m "🤖 Update signals.db" && git push)
