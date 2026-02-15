@@ -1,56 +1,41 @@
-import pandas_ta_classic as ta
+import pandas_ta as ta
 import pandas as pd
 
 class TechnicalAnalysis:
     @staticmethod
     def calculate_indicators(df):
-        """Calculate all required indicators correctly handling multi-column outputs."""
         if df is None or df.empty:
             return df
 
-        # 1. Simple Trend Indicators (Return single Series)
+        # 1. EMAs and SMAs
         df['ema_20'] = ta.ema(df['close'], length=20)
         df['sma_50'] = ta.sma(df['close'], length=50)
-        
-        # 2. Indicators that return DataFrames (Multiple Columns)
-        # Use join to merge the new columns into the main dataframe
-        
-        # MACD (returns MACD, Histogram, Signal)
-        macd_df = ta.macd(df['close'])
-        if macd_df is not None:
-            df = df.join(macd_df)
 
-        # Stochastic (returns k and d lines)
-        stoch_df = ta.stoch(df['high'], df['low'], df['close'])
-        if stoch_df is not None:
-            df = df.join(stoch_df)
+        # 2. Complex Indicators
+        macd = ta.macd(df['close'])
+        if macd is not None: df = pd.concat([df, macd], axis=1)
 
-        # Aroon (returns Up, Down, and Osc)
-        aroon_df = ta.aroon(df['high'], df['low'], length=14)
-        if aroon_df is not None:
-            df = df.join(aroon_df)
+        stoch = ta.stoch(df['high'], df['low'], df['close'])
+        if stoch is not None: df = pd.concat([df, stoch], axis=1)
 
-        # Bollinger Bands (returns Lower, Mid, Upper, Bandwidth, %B)
-        bbands_df = ta.bbands(df['close'], length=20)
-        if bbands_df is not None:
-            df = df.join(bbands_df)
+        aroon = ta.aroon(df['high'], df['low'], length=14)
+        if aroon is not None: df = pd.concat([df, aroon], axis=1)
 
-        # Ichimoku (returns two spans, base, conversion, and lagging)
-        # Ichimoku returns a tuple of two DataFrames; we usually want the first one
-        ichi_data = ta.ichimoku(df['high'], df['low'], df['close'])
-        if ichi_data is not None:
-            df = df.join(ichi_data[0])
+        bbands = ta.bbands(df['close'], length=20)
+        if bbands is not None: df = pd.concat([df, bbands], axis=1)
 
-        # 3. Momentum & Volume (Single Series)
-        df['rsi'] = ta.rsi(df['close'], length=14)
+        # Ichimoku returns (Span A/B, etc)
+        ichi, _ = ta.ichimoku(df['high'], df['low'], df['close'])
+        if ichi is not None: df = pd.concat([df, ichi], axis=1)
+
+        # 3. Momentum & Volume
+        df['RSI_14'] = ta.rsi(df['close'], length=14)
         df['obv'] = ta.obv(df['close'], df['volume'])
         
-        # ADX (required for AI Regime detector)
-        adx_df = ta.adx(df['high'], df['low'], df['close'], length=14)
-        if adx_df is not None:
-            df = df.join(adx_df)
+        adx = ta.adx(df['high'], df['low'], df['close'], length=14)
+        if adx is not None: df = pd.concat([df, adx], axis=1)
 
-        # 4. Manual Pivot Calculations
+        # 4. Manual Pivots
         df['pivot'] = (df['high'] + df['low'] + df['close']) / 3
         df['r1'] = 2 * df['pivot'] - df['low']
         df['s1'] = 2 * df['pivot'] - df['high']
