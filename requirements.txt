@@ -1,6 +1,7 @@
 ccxt
-pandas
-https://github.com/twopirllc/pandas-ta/archive/refs/heads/main.zip
+pandas>=2.0
+# Using the stable 2026 classic fork for modern compatibility
+pandas-ta-classic
 tensorflow
 transformers
 tweepy
