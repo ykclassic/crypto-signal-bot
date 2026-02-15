@@ -1,6 +1,6 @@
 ccxt==4.2.25
 pandas==2.2.2
-pandas-ta==0.3.14b0
+pandas-ta>=0.3.14b
 requests==2.31.0
 vaderSentiment==3.3.2
 newsapi-python==0.2.7
