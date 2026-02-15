@@ -8,7 +8,7 @@ on:
 jobs:
   run-bot:
     runs-on: ubuntu-latest
-    timeout-minutes: 5 # Now it only takes <1 min
+    timeout-minutes: 5
     permissions:
       contents: write
     
@@ -25,7 +25,9 @@ jobs:
       - name: Install Dependencies
         run: |
           python -m pip install --upgrade pip setuptools wheel
-          pip install -r requirements.txt --only-binary :all: || pip install -r requirements.txt
+          # We install pandas first to ensure it's ready for pandas-ta
+          pip install pandas==2.2.2
+          pip install -r requirements.txt
 
       - name: Run Bot
         env:
