@@ -1,7 +1,7 @@
 ccxt
 pandas
-# Pull the latest stable version of pandas-ta directly
-https://github.com/twopirllc/pandas-ta/archive/master.zip
+# Use the official git install syntax instead of a zip archive link
+git+https://github.com/twopirllc/pandas-ta.git@main
 tensorflow
 transformers
 tweepy
