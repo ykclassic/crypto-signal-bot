@@ -30,9 +30,6 @@ class DatabaseManager:
             logging.error(f"DB Creation Error: {e}")
 
     def save_signal(self, symbol, price, regimes, rsi, atr, sl, tp, is_aligned):
-        """
-        Saves a comprehensive signal record including MTF status and ATR levels.
-        """
         try:
             with sqlite3.connect(self.db_path) as conn:
                 cursor = conn.cursor()
