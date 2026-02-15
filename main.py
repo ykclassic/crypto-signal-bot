@@ -33,9 +33,17 @@ def main():
             
             # 1. Data Collection & Indicators
             dfs = {}
+            valid_data = True
             for tf in TIMEFRAMES:
                 raw_data = collector.fetch_ohlcv(ticker, tf)
+                if raw_data is None or raw_data.empty:
+                    valid_data = False
+                    break
                 dfs[tf] = ta_engine.calculate_indicators(raw_data)
+            
+            if not valid_data:
+                logging.error(f"Skipping {ticker} due to missing data.")
+                continue # Move to next ticker instead of crashing)
             
             # 2. Contextual Analysis
             sentiment = collector.fetch_sentiment_data(ticker)
