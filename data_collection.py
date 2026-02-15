@@ -6,11 +6,11 @@ import os
 class DataCollector:
     def __init__(self, config):
         self.webhook_url = config.get('DISCORD_WEBHOOK_URL')
-        # We initialize this as None first to ensure the class exists before logic runs
-        self.exchange = None 
+        # Initialize exchange; this will call the helper method below
         self.exchange = self._initialize_exchange(config)
 
-        def _send_discord_alert(self, message):
+    def _send_discord_alert(self, message):
+        """Sends a notification to the configured Discord webhook."""
         if not self.webhook_url:
             logging.error("❌ No Discord Webhook URL found in environment!")
             return
@@ -26,7 +26,6 @@ class DataCollector:
                 logging.error(f"❌ Discord failed: {response.status_code} - {response.text}")
         except Exception as e:
             logging.error(f"❌ Discord Exception: {e}")
-
 
     def _initialize_exchange(self, config):
         """Attempts Bitget, then Gate.io as fallback."""
@@ -53,11 +52,14 @@ class DataCollector:
                     'enableRateLimit': True,
                     'options': {'defaultType': 'spot'}
                 }
-                if password: params['password'] = password
+                # Bitget specifically requires 'password' in the params for authentication
+                if password: 
+                    params['password'] = password
 
                 instance = exchange_class(params)
-                instance.fetch_balance() # Verify login
+                instance.fetch_balance() # Verify authentication works
                 
+                # If we are on the second exchange (fallback), send an alert
                 if i > 0:
                     self._send_discord_alert(f"Primary exchange failed. Switched to: **{exchange_id.upper()}**")
                 
@@ -71,6 +73,12 @@ class DataCollector:
         raise ConnectionError("CRITICAL: Failed to connect to any exchange.")
 
     def fetch_data(self, symbol="BTC/USDT"):
-        """Standard OHLCV fetch."""
-        if not self.exchange: return None
-        return self.exchange.fetch_ohlcv(symbol, timeframe='1h', limit=100)
+        """Standard OHLCV fetch for the specified symbol."""
+        if not self.exchange:
+            logging.error(f"❌ Cannot fetch data for {symbol}: No exchange initialized.")
+            return None
+        try:
+            return self.exchange.fetch_ohlcv(symbol, timeframe='1h', limit=100)
+        except Exception as e:
+            logging.error(f"❌ Error fetching data for {symbol}: {e}")
+            return None
