@@ -1,11 +1,9 @@
-ccxt
-pandas>=2.0
-# Using the stable 2026 classic fork for modern compatibility
+discord.py
 pandas-ta-classic
-tensorflow
+tensorflow-cpu
 transformers
 tweepy
-newsapi-python
+ccxt
 vaderSentiment
-discord.py
-requests
+newsapi-python
+python-dotenv
