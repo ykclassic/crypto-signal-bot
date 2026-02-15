@@ -15,26 +15,38 @@ class DatabaseManager:
                         timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
                         symbol TEXT,
                         price REAL,
-                        regime TEXT,
+                        regime_1h TEXT,
+                        regime_4h TEXT,
+                        regime_1d TEXT,
                         rsi REAL,
-                        ema REAL
+                        atr REAL,
+                        stop_loss REAL,
+                        take_profit REAL,
+                        is_aligned INTEGER
                     )
                 ''')
                 conn.commit()
         except Exception as e:
             logging.error(f"DB Creation Error: {e}")
 
-    def save_signal(self, symbol, price, regime, rsi, ema):
+    def save_signal(self, symbol, price, regimes, rsi, atr, sl, tp, is_aligned):
+        """
+        Saves a comprehensive signal record including MTF status and ATR levels.
+        """
         try:
-            # We use isolation_level=None to force immediate writing
-            conn = sqlite3.connect(self.db_path)
-            cursor = conn.cursor()
-            cursor.execute('''
-                INSERT INTO signals (symbol, price, regime, rsi, ema)
-                VALUES (?, ?, ?, ?, ?)
-            ''', (symbol, price, regime, rsi, ema))
-            conn.commit()
-            conn.close()
-            logging.info(f"✅ Hard-saved {symbol} to disk.")
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+                cursor.execute('''
+                    INSERT INTO signals (
+                        symbol, price, regime_1h, regime_4h, regime_1d, 
+                        rsi, atr, stop_loss, take_profit, is_aligned
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (
+                    symbol, price, regimes['1h'], regimes['4h'], regimes['1d'], 
+                    rsi, atr, sl, tp, 1 if is_aligned else 0
+                ))
+                conn.commit()
+            logging.info(f"✅ Data persisted for {symbol}")
         except Exception as e:
             logging.error(f"❌ DB Write Error for {symbol}: {e}")
