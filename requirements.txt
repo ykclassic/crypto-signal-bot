@@ -1,7 +1,6 @@
 ccxt
 pandas
-# Use the official git install syntax instead of a zip archive link
-git+https://github.com/twopirllc/pandas-ta.git@main
+https://github.com/twopirllc/pandas-ta/archive/refs/heads/main.zip
 tensorflow
 transformers
 tweepy
