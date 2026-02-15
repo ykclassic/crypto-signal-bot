@@ -1,0 +1,8 @@
+Project Overview
+​The Intelligence (ai_regime.py, technical_analysis.py): The "Brain" that processes data.
+​The Persistence (database_manager.py): The "Memory" (SQLite) that tracks every signal and ML feature.
+​The Execution (main.py, monitor.py): The "Hands" that find trades and watch for exits.
+​The Reporting (dashboard.py, backtester.py): The "Eyes" that analyze performance.
+​Scaling Instructions
+​Adding Machine Learning: Once signals.db hits 500+ rows, create an ml_train.py script. Use pcnt_change, vol_ratio, and hour_of_day as features and status (Win/Loss) as your target.
+​Moving to a VPS: If you grow tired of GitHub's 30-minute latency, copy this entire folder to a Linux VPS and run main.py in a while True loop with a time.sleep(3600).
