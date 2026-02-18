@@ -2,6 +2,11 @@ import sqlite3
 import pandas as pd
 import os
 
+permissions:
+  contents: write
+  pages: write      # Required for deployment
+  id-token: write   # Required for security
+
 def generate_dashboard(db_path="signals.db"):
     if not os.path.exists(db_path):
         print("❌ Database not found!")
