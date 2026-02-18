@@ -4,60 +4,64 @@ import os
 
 def generate_dashboard(db_path="signals.db"):
     if not os.path.exists(db_path):
-        print("❌ Database not found. Run the bot first!")
+        print("❌ Database not found!")
         return
 
     conn = sqlite3.connect(db_path)
-    df = pd.read_sql_query("SELECT * FROM signals", conn)
+    df = pd.read_sql_query("SELECT * FROM signals ORDER BY id DESC LIMIT 50", conn)
     conn.close()
 
-    if df.empty:
-        print("ℹ️ Database is empty. No stats to show.")
-        return
-
-    # Calculate Stats
-    total_scans = len(df)
-    elite_signals = len(df[df['is_aligned'] == 1])
-    win_count = len(df[df['status'] == 'CLOSED_TP'])
-    loss_count = len(df[df['status'] == 'CLOSED_SL'])
-    
-    # Simple Win Rate Calculation
-    total_closed = win_count + loss_count
-    win_rate = (win_count / total_closed * 100) if total_closed > 0 else 0
+    # Dynamic CSS for the Audit Log
+    rows_html = ""
+    for _, row in df.iterrows():
+        status_color = "#4ade80" if row['status'] == "ELITE" else "#f87171"
+        rows_html += f"""
+        <tr>
+            <td>{row['timestamp']}</td>
+            <td><b>{row['symbol']}</b></td>
+            <td style="color: {status_color}; font-weight: bold;">{row['status']}</td>
+            <td>{row['reason']}</td>
+            <td>{row['rsi']:.1f}</td>
+            <td>{row['adx']:.1f}</td>
+        </tr>
+        """
 
     html_content = f"""
     <html>
     <head>
-        <title>Crypto Bot Dashboard</title>
+        <title>Bot Performance Audit</title>
         <style>
-            body {{ font-family: sans-serif; background: #121212; color: white; padding: 40px; }}
-            .card-container {{ display: flex; gap: 20px; margin-bottom: 30px; }}
-            .card {{ background: #1e1e1e; padding: 20px; border-radius: 10px; flex: 1; text-align: center; border: 1px solid #333; }}
-            .value {{ font-size: 2em; font-weight: bold; color: #00ff88; }}
-            table {{ width: 100%; border-collapse: collapse; background: #1e1e1e; }}
-            th, td {{ padding: 12px; border-bottom: 1px solid #333; text-align: left; }}
-            th {{ background: #252525; }}
-            .status-tp {{ color: #00ff88; font-weight: bold; }}
-            .status-sl {{ color: #ff4444; font-weight: bold; }}
+            body {{ font-family: 'Inter', sans-serif; background: #0f172a; color: white; padding: 40px; }}
+            .container {{ max-width: 1100px; margin: auto; }}
+            h1 {{ color: #38bdf8; }}
+            table {{ width: 100%; border-collapse: collapse; background: #1e293b; margin-top: 20px; border-radius: 8px; overflow: hidden; }}
+            th, td {{ padding: 15px; text-align: left; border-bottom: 1px solid #334155; }}
+            th {{ background: #334155; color: #38bdf8; text-transform: uppercase; font-size: 0.8em; }}
+            tr:hover {{ background: #2d3748; }}
         </style>
     </head>
     <body>
-        <h1>🚀 Crypto Signal Intelligence Dashboard</h1>
-        <div class="card-container">
-            <div class="card"><div class="label">Total Scans</div><div class="value">{total_scans}</div></div>
-            <div class="card"><div class="label">Elite Signals</div><div class="value">{elite_signals}</div></div>
-            <div class="card"><div class="label">Win Rate</div><div class="value">{win_rate:.1f}%</div></div>
-            <div class="card"><div class="label">Active Trades</div><div class="value">{len(df[df['status'] == 'OPEN'])}</div></div>
+        <div class="container">
+            <h1>🛡️ Trading Bot Audit Log</h1>
+            <p>Showing the last 50 market scans and rejection reasons.</p>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Time</th><th>Symbol</th><th>Status</th><th>Reason for Decision</th><th>RSI</th><th>ADX</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {rows_html}
+                </tbody>
+            </table>
         </div>
-        <h2>Latest Signals</h2>
-        {df.tail(10).to_html(index=False, classes='table')}
     </body>
     </html>
     """
-    
+
     with open("report.html", "w") as f:
         f.write(html_content)
-    print("✅ Dashboard generated: report.html")
+    print("✅ Audit Dashboard generated: report.html")
 
 if __name__ == "__main__":
     generate_dashboard()
