@@ -1,12 +1,11 @@
 name: Manual Performance Dashboard
 
 on:
-  workflow_dispatch: # Manual trigger button
+  workflow_dispatch:
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
-    # CRITICAL: This gives the bot permission to write the report.html to your repo
     permissions:
       contents: write 
 
@@ -14,7 +13,7 @@ jobs:
       - name: 1. Checkout Code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # Fetches all history so git push works smoothly
+          fetch-depth: 0
 
       - name: 2. Setup Python
         uses: actions/setup-python@v5
@@ -24,7 +23,8 @@ jobs:
       - name: 3. Install Requirements
         run: |
           python -m pip install --upgrade pip
-          pip install pandas==2.2.2 ccxt>=4.2.25 pandas-ta==0.3.14b0
+          # Updated to 0.4.71b0 which is the stable version for Python 3.12 in 2026
+          pip install pandas==2.2.2 requests ccxt>=4.2.25 pandas-ta==0.4.71b0
 
       - name: 4. Run Dashboard Script
         env:
@@ -34,30 +34,23 @@ jobs:
           DB_PATH: signals.db
         run: python dashboard.py
 
-      - name: 5. Pre-flight Check (Verify File Exists)
+      - name: 5. Verify File Creation
         run: |
           if [ -f "report.html" ]; then
-            echo "✅ report.html found! Preparing to push."
-            ls -lh report.html
+            echo "✅ report.html generated successfully."
           else
-            echo "❌ ERROR: dashboard.py failed to create report.html"
+            echo "❌ ERROR: report.html was not created. Check dashboard.py logs above."
             exit 1
           fi
 
-      - name: 6. Force Sync to Repository
+      - name: 6. Sync to Repository
         run: |
           git config --local user.name "github-actions[bot]"
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
-          
-          # Pull latest changes to avoid "Rejected" errors
-          git pull origin main --rebase 
-          
-          # Force add the file even if it was ignored
+          git pull origin main --rebase
           git add -f report.html
-          
-          # Only commit if there are actual changes
           if git diff --staged --quiet; then
-            echo "No changes to the dashboard. Skipping push."
+            echo "No changes detected."
           else
             git commit -m "📊 Update Audit Dashboard [skip ci]"
             git push origin main
