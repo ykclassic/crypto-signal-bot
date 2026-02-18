@@ -1,30 +1,64 @@
 name: Manual Performance Dashboard
 
 on:
-  workflow_dispatch: # This enables the "Run workflow" button in the GitHub UI
+  workflow_dispatch: # Manual trigger button
 
 jobs:
-  generate-report:
+  build-and-deploy:
     runs-on: ubuntu-latest
+    # CRITICAL: This gives the bot permission to write the report.html to your repo
     permissions:
-      contents: write
+      contents: write 
+
     steps:
-      - uses: actions/checkout@v4
-      
-      - name: Setup Python
+      - name: 1. Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Fetches all history so git push works smoothly
+
+      - name: 2. Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-          
-      - name: Install Dependencies
-        run: pip install pandas
-        
-      - name: Run Dashboard Script
+
+      - name: 3. Install Requirements
+        run: |
+          python -m pip install --upgrade pip
+          pip install pandas==2.2.2 ccxt>=4.2.25 pandas-ta==0.3.14b0
+
+      - name: 4. Run Dashboard Script
+        env:
+          BITGET_API_KEY: ${{ secrets.BITGET_API_KEY }}
+          BITGET_SECRET: ${{ secrets.BITGET_SECRET }}
+          BITGET_PASSWORD: ${{ secrets.BITGET_PASSWORD }}
+          DB_PATH: signals.db
         run: python dashboard.py
-        
-      - name: Commit and Push Report
+
+      - name: 5. Pre-flight Check (Verify File Exists)
+        run: |
+          if [ -f "report.html" ]; then
+            echo "✅ report.html found! Preparing to push."
+            ls -lh report.html
+          else
+            echo "❌ ERROR: dashboard.py failed to create report.html"
+            exit 1
+          fi
+
+      - name: 6. Force Sync to Repository
         run: |
           git config --local user.name "github-actions[bot]"
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
-          git add report.html
-          git diff --staged --quiet || (git commit -m "📊 Manual Update: Performance Dashboard" && git push)
+          
+          # Pull latest changes to avoid "Rejected" errors
+          git pull origin main --rebase 
+          
+          # Force add the file even if it was ignored
+          git add -f report.html
+          
+          # Only commit if there are actual changes
+          if git diff --staged --quiet; then
+            echo "No changes to the dashboard. Skipping push."
+          else
+            git commit -m "📊 Update Audit Dashboard [skip ci]"
+            git push origin main
+          fi
