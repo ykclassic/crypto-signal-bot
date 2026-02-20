@@ -2,7 +2,7 @@ name: Trade Signal Monitor
 
 on:
   schedule:
-    - cron: '*/30 * * * *' # Runs every 30 minutes
+    - cron: '*/30 * * * *'
   workflow_dispatch:
 
 jobs:
@@ -12,49 +12,42 @@ jobs:
       contents: write
 
     steps:
-      - name: Checkout Code
+      - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Set up Python
+      - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
 
-      - name: Install Dependencies
+      - name: Install
         run: |
           python -m pip install --upgrade pip
           pip install pandas==2.2.2 requests ccxt>=4.2.25 pandas-ta-openbb==0.4.23
 
       - name: Run Monitor
         env:
-          # Bitget Credentials (Missing in previous version)
           BITGET_API_KEY: ${{ secrets.BITGET_API_KEY }}
           BITGET_SECRET: ${{ secrets.BITGET_SECRET }}
           BITGET_PASSWORD: ${{ secrets.BITGET_PASSWORD }}
-          
-          # Fallbacks & Alerts
           GATEIO_API_KEY: ${{ secrets.GATEIO_API_KEY }}
           GATEIO_SECRET: ${{ secrets.GATEIO_SECRET }}
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
           DB_PATH: signals.db
         run: python monitor.py
 
-      - name: Save DB Changes
+      - name: Save Changes
         if: always()
         run: |
           git config --local user.name "github-actions[bot]"
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
-          
-          # Stage changes and pull latest to avoid conflicts with the Main Bot
           git add signals.db
           git pull origin main --rebase
-          
-          # Only push if changes were made
           if git diff --staged --quiet; then
-            echo "No trade updates to log."
+            echo "No updates."
           else
-            git commit -m "📉 Monitor Update: TP/SL Checks $(date +'%Y-%m-%d %H:%M')"
+            git commit -m "📉 Monitor Update $(date +'%Y-%m-%d %H:%M')"
             git push origin main
           fi
