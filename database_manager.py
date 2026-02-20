@@ -24,26 +24,26 @@ class DatabaseManager:
                         hour_of_day INTEGER
                     )
                 ''')
-                # Schema Migration Logic
+                
+                # Auto-Migration logic to prevent "no column named" errors
                 cursor = conn.cursor()
                 cursor.execute("PRAGMA table_info(signals)")
                 columns = [col[1] for col in cursor.fetchall()]
                 
-                required_columns = {
+                migrations = {
                     'status': 'TEXT',
                     'reason': 'TEXT',
                     'hour_of_day': 'INTEGER'
                 }
                 
-                for col_name, col_type in required_columns.items():
+                for col_name, col_type in migrations.items():
                     if col_name not in columns:
-                        logging.info(f"🛠️ Migrating DB: Adding column '{col_name}'")
+                        logging.info(f"🛠️ DB Migration: Adding {col_name}")
                         conn.execute(f"ALTER TABLE signals ADD COLUMN {col_name} {col_type}")
         except Exception as e:
-            logging.error(f"❌ DB Init/Migration Error: {e}")
+            logging.error(f"❌ DB Init Error: {e}")
 
     def save_signal(self, symbol, price, regimes, df_row, sl, tp, is_aligned, status, reason, hour_of_day):
-        """Saves a scan result (Elite or Rejected) to the database."""
         try:
             with sqlite3.connect(self.db_path) as conn:
                 conn.execute('''
@@ -56,6 +56,5 @@ class DatabaseManager:
                     df_row['rsi'], df_row['adx'], df_row['atr'], 
                     1 if is_aligned else 0, status, reason, hour_of_day
                 ))
-                logging.info(f"💾 Saved {status} audit for {symbol}")
         except Exception as e:
             logging.error(f"❌ DB Save Error for {symbol}: {e}")
