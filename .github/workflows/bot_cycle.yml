@@ -2,14 +2,14 @@ name: Hourly Crypto Bot Cycle
 
 on:
   schedule:
-    - cron: '0 * * * *' # Runs at the start of every hour
-  workflow_dispatch:      # Allows you to click "Run Workflow" manually
+    - cron: '0 * * * *' # Runs exactly at the start of every hour
+  workflow_dispatch:      # Allows manual trigger for testing
 
 jobs:
   trade-cycle:
     runs-on: ubuntu-latest
     
-    # CRITICAL: Grant write access to push signals.db and report.html back to repo
+    # CRITICAL: Grant permission to push signals.db and report.html back to the repository
     permissions:
       contents: write
 
@@ -17,7 +17,7 @@ jobs:
       - name: 1. Checkout Code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # Fetches full history for a cleaner git push
+          fetch-depth: 0 # Full history required for clean git pushes
 
       - name: 2. Set up Python
         uses: actions/setup-python@v5
@@ -27,16 +27,17 @@ jobs:
       - name: 3. Install Dependencies
         run: |
           python -m pip install --upgrade pip
+          # Installing the OpenBB version which is the 2026 standard for Pandas 2.2.2 compatibility
           pip install pandas==2.2.2 requests ccxt>=4.2.25 pandas-ta-openbb==0.4.23
 
       - name: 4. Run Trading Bot
         env:
-          # --- MANDATORY BITGET CREDENTIALS ---
+          # --- BITGET AUTHENTICATION ---
           BITGET_API_KEY: ${{ secrets.BITGET_API_KEY }}
           BITGET_SECRET: ${{ secrets.BITGET_SECRET }}
-          BITGET_PASSWORD: ${{ secrets.BITGET_PASSWORD }} # This is your Passphrase
+          BITGET_PASSWORD: ${{ secrets.BITGET_PASSWORD }} # API Passphrase
           
-          # --- SECONDARY & INFRASTRUCTURE ---
+          # --- INFRASTRUCTURE & FALLBACKS ---
           GATEIO_API_KEY: ${{ secrets.GATEIO_API_KEY }}
           GATEIO_SECRET: ${{ secrets.GATEIO_SECRET }}
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
@@ -44,25 +45,24 @@ jobs:
           DB_PATH: signals.db
         run: python main.py
 
-      - name: 5. Verify and Audit
-        run: |
-          ls -lh signals.db || echo "Database file not found"
-          # Optional: Quick check to see if trades were logged
-          # sqlite3 signals.db "SELECT symbol, status FROM signals ORDER BY id DESC LIMIT 5;"
+      - name: 5. Generate Dashboard
+        env:
+          DB_PATH: signals.db
+        run: python dashboard.py
 
-      - name: 6. Sync Changes to Repository
-        if: always() # Ensure we save logs even if the bot logic fails
+      - name: 6. Sync Data and Dashboard
+        if: always() # Runs even if the bot found no signals or errored out
         run: |
           git config --local user.name "github-actions[bot]"
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           
-          # Add all modified files (DB and HTML report if generated)
-          git add signals.db report.html || echo "Some files missing, continuing..."
+          # Ensure both the database and the visual report are staged
+          git add signals.db report.html || echo "Warning: Some files were not found for staging"
           
-          # Only commit if there are actual changes to prevent workflow failure
+          # Check for changes before committing to avoid 'nothing to commit' errors
           if git diff --staged --quiet; then
-            echo "No changes to commit."
+            echo "No changes detected in database or dashboard."
           else
-            git commit -m "🤖 Bot Audit Sync: $(date)"
+            git commit -m "🤖 Bot Auto-Audit: $(date +'%Y-%m-%d %H:%M')"
             git push origin main
           fi
