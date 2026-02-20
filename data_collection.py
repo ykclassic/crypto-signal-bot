@@ -1,84 +1,75 @@
 import ccxt
-import logging
 import requests
-import os
+import logging
+import time
 
 class DataCollector:
     def __init__(self, config):
-        self.webhook_url = config.get('DISCORD_WEBHOOK_URL')
-        # Initialize exchange; this will call the helper method below
-        self.exchange = self._initialize_exchange(config)
+        self.config = config
+        self.exchange_name = "BITGET"
+        
+        # Initialize Bitget with mandatory password (passphrase)
+        self.exchange = ccxt.bitget({
+            'apiKey': config.get('BITGET_API_KEY'),
+            'secret': config.get('BITGET_SECRET'),
+            'password': config.get('BITGET_PASSWORD'),  # Critical for Bitget
+            'enableRateLimit': True,
+            'options': {
+                'defaultType': 'spot',  # Ensure we are targeting Spot markets
+                'adjustForTimeDifference': True
+            }
+        })
+
+        # Fallback Exchange (Gate.io)
+        self.fallback_exchange = ccxt.gateio({
+            'apiKey': config.get('GATEIO_API_KEY'),
+            'secret': config.get('GATEIO_SECRET'),
+            'enableRateLimit': True
+        })
+
+        self._validate_connections()
+
+    def _validate_connections(self):
+        """Verifies if the API keys are actually working."""
+        try:
+            self.exchange.fetch_balance()
+            logging.info(f"✅ Primary Exchange ({self.exchange_name}) Connected Successfully.")
+        except Exception as e:
+            logging.error(f"❌ Primary Exchange ({self.exchange_name}) Failed: {e}")
+            self.exchange = self.fallback_exchange
+            self.exchange_name = "GATEIO"
+            logging.warning(f"🔄 Switched to Fallback: {self.exchange_name}")
+
+    def fetch_data(self, symbol, timeframe='1h', limit=100):
+        """Fetches OHLCV data from the active exchange."""
+        try:
+            # Bitget uses 'BTC/USDT' format; Gate.io is compatible
+            ohlcv = self.exchange.fetch_ohlcv(symbol, timeframe, limit=limit)
+            if not ohlcv:
+                raise ValueError(f"Empty data received for {symbol}")
+            return ohlcv
+        except Exception as e:
+            logging.error(f"❌ Error fetching {symbol} from {self.exchange_name}: {e}")
+            return None
 
     def _send_discord_alert(self, message):
-        """Sends a notification to the configured Discord webhook."""
-        if not self.webhook_url:
-            logging.error("❌ No Discord Webhook URL found in environment!")
+        """Standard Discord Webhook notification."""
+        url = self.config.get('DISCORD_WEBHOOK_URL')
+        if not url:
             return
+        
+        payload = {"content": message}
         try:
-            response = requests.post(
-                self.webhook_url, 
-                json={"content": message}, 
-                timeout=10
-            )
-            if response.status_code == 204:
-                logging.info("🚀 Discord alert sent successfully.")
-            else:
-                logging.error(f"❌ Discord failed: {response.status_code} - {response.text}")
+            response = requests.post(url, json=payload)
+            response.raise_for_status()
         except Exception as e:
-            logging.error(f"❌ Discord Exception: {e}")
+            logging.error(f"⚠️ Discord Alert Failed: {e}")
 
-    def _initialize_exchange(self, config):
-        """Attempts Bitget, then Gate.io as fallback."""
-        priority_exchanges = [
-            {'id': 'bitget', 'key': 'BITGET_API_KEY', 'secret': 'BITGET_SECRET', 'pass': 'BITGET_PASSWORD'},
-            {'id': 'gate', 'key': 'GATEIO_API_KEY', 'secret': 'GATEIO_SECRET'}
-        ]
-
-        for i, ex in enumerate(priority_exchanges):
-            exchange_id = ex['id']
-            api_key = config.get(ex['key'])
-            secret = config.get(ex['secret'])
-            password = config.get(ex.get('pass', ''))
-
-            if not api_key or not secret:
-                logging.warning(f"Skipping {exchange_id}: Missing credentials.")
-                continue
-
-            try:
-                exchange_class = getattr(ccxt, exchange_id)
-                params = {
-                    'apiKey': api_key,
-                    'secret': secret,
-                    'enableRateLimit': True,
-                    'options': {'defaultType': 'spot'}
-                }
-                # Bitget specifically requires 'password' in the params for authentication
-                if password: 
-                    params['password'] = password
-
-                instance = exchange_class(params)
-                instance.fetch_balance() # Verify authentication works
-                
-                # If we are on the second exchange (fallback), send an alert
-                if i > 0:
-                    self._send_discord_alert(f"Primary exchange failed. Switched to: **{exchange_id.upper()}**")
-                
-                logging.info(f"✅ Connected to {exchange_id.upper()}")
-                return instance
-                
-            except Exception as e:
-                logging.error(f"❌ {exchange_id} Auth Error: {str(e)}")
-                continue
-
-        raise ConnectionError("CRITICAL: Failed to connect to any exchange.")
-
-    def fetch_data(self, symbol="BTC/USDT"):
-        """Standard OHLCV fetch for the specified symbol."""
-        if not self.exchange:
-            logging.error(f"❌ Cannot fetch data for {symbol}: No exchange initialized.")
-            return None
+    def get_current_price(self, symbol):
+        """Fetches the latest ticker price."""
         try:
-            return self.exchange.fetch_ohlcv(symbol, timeframe='1h', limit=100)
+            ticker = self.exchange.fetch_ticker(symbol)
+            return ticker['last']
         except Exception as e:
-            logging.error(f"❌ Error fetching data for {symbol}: {e}")
+            logging.error(f"❌ Error fetching price for {symbol}: {e}")
             return None
