@@ -35,11 +35,14 @@ jobs:
           git config --local user.name "github-actions[bot]"
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           
-          # Standard procedure to pull before pushing to avoid conflicts
-          git pull origin main --rebase
-          
-          # Force add if report.html is in .gitignore, then check for changes
+          # FIRST: Stage the changes created by the dashboard script
           git add report.html
+          
+          # SECOND: Pull with rebase. Since changes are staged, Git can handle the merge.
+          # We use -X ours to prioritize local report generation if there's a conflict.
+          git pull origin main --rebase -X ours
+          
+          # THIRD: Commit and push if there is actually something new
           if git diff --staged --quiet; then
             echo "No changes in report.html detected."
           else
