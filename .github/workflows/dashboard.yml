@@ -35,16 +35,22 @@ jobs:
           git config --local user.name "github-actions[bot]"
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           
-          # FIRST: Stage the changes created by the dashboard script
-          git add report.html
+          # 1. Stage all changes (including the newly generated report.html)
+          git add report.html signals.db || echo "Files not found"
           
-          # SECOND: Pull with rebase. Since changes are staged, Git can handle the merge.
-          # We use -X ours to prioritize local report generation if there's a conflict.
-          git pull origin main --rebase -X ours
+          # 2. Stash any temporary noise to ensure a clean rebase
+          git stash
           
-          # THIRD: Commit and push if there is actually something new
+          # 3. Pull the latest from main to sync with the Hourly Bot's latest DB updates
+          git pull origin main --rebase
+          
+          # 4. Pop the changes back out
+          git stash pop || echo "Nothing to pop"
+          
+          # 5. Re-stage and check for actual differences
+          git add report.html signals.db
           if git diff --staged --quiet; then
-            echo "No changes in report.html detected."
+            echo "No changes detected."
           else
             git commit -m "📊 Update Audit Dashboard [skip ci]"
             git push origin main
