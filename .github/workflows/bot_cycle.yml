@@ -28,7 +28,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           # Installing the OpenBB version which is the 2026 standard for Pandas 2.2.2 compatibility
-          pip install pandas==2.2.2 requests ccxt>=4.2.25 pandas-ta-openbb==0.4.23
+          pip install pandas==2.2.2 requests ccxt==4.2.25 pandas-ta-openbb==0.4.23
 
       - name: 4. Run Trading Bot
         env:
