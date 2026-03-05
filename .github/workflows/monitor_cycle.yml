@@ -25,7 +25,7 @@ jobs:
       - name: Install
         run: |
           python -m pip install --upgrade pip
-          pip install pandas==2.2.2 requests ccxt>=4.2.25 pandas-ta-openbb==0.4.23
+          pip install pandas==2.2.2 requests ccxt==4.2.25 pandas-ta-openbb==0.4.23
 
       - name: Run Monitor
         env:
