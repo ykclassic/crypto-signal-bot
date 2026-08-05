@@ -14,7 +14,7 @@ def main():
         'BITGET_SECRET': os.getenv('BITGET_SECRET'),
         'BITGET_PASSWORD': os.getenv('BITGET_PASSWORD'),
         'DISCORD_WEBHOOK_URL': os.getenv('DISCORD_WEBHOOK_URL'),
-        'DB_PATH': 'signals.db'
+        'DB_PATH': os.getenv('DB_PATH', 'signals.db')  # Dynamic lookup with fallback
     }
 
     collector = DataCollector(config)
@@ -26,7 +26,10 @@ def main():
         try:
             logging.info(f"🔍 Analyzing {symbol}...")
             tf_data = {tf: collector.fetch_data(symbol, tf, 100) for tf in ['1d', '4h', '1h']}
-            if not all(tf_data.values()): continue
+            
+            if not all(tf_data.values()): 
+                logging.warning(f"⚠️ Skipping {symbol}: Incomplete candle data fetched.")
+                continue
 
             # Analyze Regimes
             regimes, dfs = {}, {}
